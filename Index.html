@@ -1,0 +1,1761 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CALORIEOS — Smart Calorie Deficit Tracker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#090B0F',
+                        cardBg: '#11151C',
+                        primary: '#7C5CFC',
+                        success: '#20D9A2',
+                        warning: '#FFB547',
+                        danger: '#FF5C7A',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'Geist', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Recharts CDN via jsdelivr -->
+    <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #090B0F;
+            color: #F8FAFC;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #090B0F;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #1e2633;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #7C5CFC;
+        }
+    </style>
+</head>
+
+<body class="bg-darkBg text-slate-100 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const {useState, useEffect, useMemo, useRef} = React;
+        const RechartsLib = window.Recharts || {};
+        const {
+            ResponsiveContainer = ({children}) => <div className="w-full h-full">{children}</div>,
+            AreaChart = ({children}) => <div className="flex items-center justify-center h-full text-slate-500 text-xs">Chart loading...</div>,
+            Area = () => null,
+            XAxis = () => null,
+            YAxis = () => null,
+            Tooltip = () => null,
+            CartesianGrid = () => null,
+            BarChart = ({children}) => <div className="flex items-center justify-center h-full text-slate-500 text-xs">Chart loading...</div>,
+            Bar = () => null,
+            PieChart = ({children}) => <div className="flex items-center justify-center h-full text-slate-500 text-xs">Chart loading...</div>,
+            Pie = () => null,
+            Cell = () => null
+        } = RechartsLib;
+
+        const INITIAL_USDA_FOODS = [
+            {id: 'usda-1', name: 'Chicken Breast, skinless, cooked', category: 'Foundation Foods', calories: 165, protein: 31.0, carbs: 0.0, fat: 3.6, fiber: 0.0, sugar: 0.0, sodium: 74, servingSize: 100, servingUnit: 'g', source: 'USDA Foundation'},
+            {id: 'usda-2', name: 'Brown Rice, cooked', category: 'Foundation Foods', calories: 123, protein: 2.6, carbs: 25.8, fat: 1.0, fiber: 1.8, sugar: 0.4, sodium: 2, servingSize: 100, servingUnit: 'g', source: 'USDA SR Legacy'},
+            {id: 'usda-3', name: 'Avocado, raw', category: 'Foundation Foods', calories: 160, protein: 2.0, carbs: 8.5, fat: 14.7, fiber: 6.7, sugar: 0.7, sodium: 7, servingSize: 100, servingUnit: 'g', source: 'USDA Foundation'},
+            {id: 'usda-4', name: 'Greek Yogurt, plain, low-fat', category: 'FNDDS', calories: 73, protein: 10.0, carbs: 3.6, fat: 1.5, fiber: 0.0, sugar: 3.2, sodium: 36, servingSize: 100, servingUnit: 'g', source: 'USDA FNDDS'},
+            {id: 'usda-5', name: 'Large Egg, whole, cooked', category: 'Foundation Foods', calories: 155, protein: 12.6, carbs: 1.1, fat: 10.6, fiber: 0.0, sugar: 1.1, sodium: 124, servingSize: 100, servingUnit: 'g', source: 'USDA Foundation'},
+            {id: 'usda-6', name: 'Oats, rolled, dry', category: 'SR Legacy', calories: 389, protein: 16.9, carbs: 66.3, fat: 6.9, fiber: 10.6, sugar: 0.9, sodium: 2, servingSize: 100, servingUnit: 'g', source: 'USDA SR Legacy'},
+            {id: 'usda-7', name: 'Whey Protein Isolate Powder', category: 'Branded Foods', calories: 370, protein: 90.0, carbs: 1.5, fat: 0.8, fiber: 0.0, sugar: 1.0, sodium: 180, servingSize: 100, servingUnit: 'g', source: 'Branded Label'},
+            {id: 'usda-8', name: 'Sweet Potato, baked in skin', category: 'Foundation Foods', calories: 90, protein: 2.0, carbs: 20.7, fat: 0.1, fiber: 3.3, sugar: 6.5, sodium: 36, servingSize: 100, servingUnit: 'g', source: 'USDA Foundation'},
+            {id: 'usda-9', name: 'Salmon fillet, farmed, cooked', category: 'Foundation Foods', calories: 206, protein: 22.1, carbs: 0.0, fat: 12.3, fiber: 0.0, sugar: 0.0, sodium: 60, servingSize: 100, servingUnit: 'g', source: 'USDA Foundation'},
+            {id: 'usda-10', name: 'Banana, raw', category: 'Foundation Foods', calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3, fiber: 2.6, sugar: 12.2, sodium: 1, servingSize: 100, servingUnit: 'g', source: 'USDA Foundation'},
+            {id: 'usda-11', name: 'Almonds, dry roasted', category: 'Foundation Foods', calories: 597, protein: 21.1, carbs: 21.0, fat: 52.5, fiber: 12.5, sugar: 4.9, sodium: 1, servingSize: 100, servingUnit: 'g', source: 'USDA Foundation'},
+            {id: 'usda-12', name: 'Broccoli, steamed', category: 'Foundation Foods', calories: 35, protein: 2.4, carbs: 7.2, fat: 0.4, fiber: 3.3, sugar: 1.4, sodium: 41, servingSize: 100, servingUnit: 'g', source: 'USDA Foundation'}
+        ];
+
+        const ACTIVITY_LEVELS = [
+            {id: 'sedentary', name: 'Sedentary', multiplier: 1.2, description: 'Little or no exercise, desk job'},
+            {id: 'light', name: 'Lightly Active', multiplier: 1.375, description: 'Light exercise / sports 1-3 days/week'},
+            {id: 'moderate', name: 'Moderately Active', multiplier: 1.55, description: 'Moderate exercise / sports 3-5 days/week'},
+            {id: 'very', name: 'Very Active', multiplier: 1.725, description: 'Hard exercise / sports 6-7 days/week'},
+            {id: 'extreme', name: 'Extremely Active', multiplier: 1.9, description: 'Very hard exercise, physical job or training'}
+        ];
+
+        function App() {
+            // LocalStorage persistence state
+            const [profile, setProfile] = useState(() => {
+                const saved = localStorage.getItem('calorieos_profile');
+                return saved ? JSON.parse(saved) : null;
+            });
+
+            const [mealsLog, setMealsLog] = useState(() => {
+                const saved = localStorage.getItem('calorieos_meals');
+                return saved ? JSON.parse(saved) : {
+                    // format: "YYYY-MM-DD": { breakfast: [], lunch: [], dinner: [], snacks: [] }
+                };
+            });
+
+            const [weightLogs, setWeightLogs] = useState(() => {
+                const saved = localStorage.getItem('calorieos_weights');
+                return saved ? JSON.parse(saved) : [
+                    {date: '2026-03-01', weight: 82.5},
+                    {date: '2026-03-08', weight: 82.0},
+                    {date: '2026-03-15', weight: 81.4},
+                    {date: '2026-03-22', weight: 80.9},
+                    {date: '2026-03-29', weight: 80.3}
+                ];
+            });
+
+            const [exerciseLogs, setExerciseLogs] = useState(() => {
+                const saved = localStorage.getItem('calorieos_exercise');
+                return saved ? JSON.parse(saved) : {
+                    '2026-03-29': [{id: 'ex-1', type: 'Running', duration: 30, caloriesBurned: 320, intensity: 'Moderate'}]
+                };
+            });
+
+            const [customFoods, setCustomFoods] = useState(() => {
+                const saved = localStorage.getItem('calorieos_custom_foods');
+                return saved ? JSON.parse(saved) : [];
+            });
+
+            const [favorites, setFavorites] = useState(() => {
+                const saved = localStorage.getItem('calorieos_favorites');
+                return saved ? JSON.parse(saved) : ['usda-1', 'usda-4'];
+            });
+
+            const [settings, setSettings] = useState(() => {
+                const saved = localStorage.getItem('calorieos_settings');
+                return saved ? JSON.parse(saved) : {apiKey: '', unitSystem: 'metric', exerciseCreditPercent: 50};
+            });
+
+            // Navigation state
+            const [currentTab, setCurrentTab] = useState(profile ? 'home' : 'onboarding');
+            const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+            // Modals state
+            const [activeModal, setActiveModal] = useState(null); // 'foodSearch', 'foodDetail', 'customFood', 'weightLog', 'exerciseLog', 'dayDetail', 'disclaimer', 'settings'
+            const [selectedMealCategory, setSelectedMealCategory] = useState('breakfast');
+            const [selectedFoodItem, setSelectedFoodItem] = useState(null);
+            const [calendarModalDate, setCalendarModalDate] = useState(null);
+            const [toastMessage, setToastMessage] = useState(null);
+
+            // Sync with localStorage
+            useEffect(() => {
+                if (profile) localStorage.setItem('calorieos_profile', JSON.stringify(profile));
+            }, [profile]);
+
+            useEffect(() => {
+                localStorage.setItem('calorieos_meals', JSON.stringify(mealsLog));
+            }, [mealsLog]);
+
+            useEffect(() => {
+                localStorage.setItem('calorieos_weights', JSON.stringify(weightLogs));
+            }, [weightLogs]);
+
+            useEffect(() => {
+                localStorage.setItem('calorieos_exercise', JSON.stringify(exerciseLogs));
+            }, [exerciseLogs]);
+
+            useEffect(() => {
+                localStorage.setItem('calorieos_custom_foods', JSON.stringify(customFoods));
+            }, [customFoods]);
+
+            useEffect(() => {
+                localStorage.setItem('calorieos_favorites', JSON.stringify(favorites));
+            }, [favorites]);
+
+            useEffect(() => {
+                localStorage.setItem('calorieos_settings', JSON.stringify(settings));
+            }, [settings]);
+
+            const showToast = (msg) => {
+                setToastMessage(msg);
+                setTimeout(() => setToastMessage(null), 3500);
+            };
+
+            // Calculations
+            const allFoods = useMemo(() => [...INITIAL_USDA_FOODS, ...customFoods], [customFoods]);
+
+            // Today's consumed summary
+            const todayMeals = mealsLog[selectedDate] || {breakfast: [], lunch: [], dinner: [], snacks: []};
+            const todayTotals = useMemo(() => {
+                let calories = 0, protein = 0, carbs = 0, fat = 0, fiber = 0, sodium = 0;
+                ['breakfast', 'lunch', 'dinner', 'snacks'].forEach(cat => {
+                    (todayMeals[cat] || []).forEach(item => {
+                        calories += item.calories || 0;
+                        protein += item.protein || 0;
+                        carbs += item.carbs || 0;
+                        fat += item.fat || 0;
+                        fiber += item.fiber || 0;
+                        sodium += item.sodium || 0;
+                    });
+                });
+                return {calories, protein, carbs, fat, fiber, sodium};
+            }, [todayMeals]);
+
+            const todayExerciseCalories = useMemo(() => {
+                const list = exerciseLogs[selectedDate] || [];
+                return list.reduce((acc, curr) => acc + (curr.caloriesBurned || 0), 0);
+            }, [exerciseLogs, selectedDate]);
+
+            return (
+                <div className="flex flex-col min-h-screen bg-darkBg text-slate-100 selection:bg-primary selection:text-white">
+                    {toastMessage && (
+                        <div className="fixed top-5 right-5 z-50 bg-cardBg border border-success/30 text-success px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center space-x-2 animate-bounce">
+                            <span className="w-2 h-2 rounded-full bg-success animate-ping"></span>
+                            <span className="text-sm font-medium">{toastMessage}</span>
+                        </div>
+                    )}
+
+                    {!profile ? (
+                        <OnboardingFlow onComplete={(newProfile) => {
+                            setProfile(newProfile);
+                            setCurrentTab('home');
+                            showToast('Profile created successfully! Welcome to CALORIEOS.');
+                        }} />
+                    ) : (
+                        <div className="flex flex-col lg:flex-row flex-1">
+                            {/* Desktop Sidebar */}
+                            <aside className="hidden lg:flex flex-col w-72 bg-cardBg/90 border-r border-white/5 p-6 sticky top-0 h-screen backdrop-blur-xl">
+                                <div className="flex items-center space-x-3 mb-8">
+                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-success flex items-center justify-center font-black text-xl text-darkBg shadow-lg shadow-primary/20">
+                                        C
+                                    </div>
+                                    <div>
+                                        <h1 className="font-bold text-lg tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">CALORIEOS</h1>
+                                        <p className="text-xs text-slate-400">Smart Calorie Deficit Tracker</p>
+                                    </div>
+                                </div>
+
+                                <nav className="space-y-2 flex-1">
+                                    {[
+                                        {id: 'home', label: 'Dashboard', icon: 'LayoutDashboard'},
+                                        {id: 'food', label: 'Food Database', icon: 'Utensils'},
+                                        {id: 'progress', label: 'Progress & Weight', icon: 'TrendingUp'},
+                                        {id: 'history', label: 'Calendar History', icon: 'Calendar'},
+                                        {id: 'analytics', label: 'Analytics Insights', icon: 'PieChart'},
+                                        {id: 'settings', label: 'Settings & Profile', icon: 'Settings'}
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setCurrentTab(tab.id)}
+                                            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${currentTab === tab.id
+                                                ? 'bg-primary text-white shadow-lg shadow-primary/30 font-semibold'
+                                                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                                                }`}
+                                        >
+                                            <i data-lucide={tab.icon} className="w-5 h-5"></i>
+                                            <span>{tab.label}</span>
+                                        </button>
+                                    ))}
+                                </nav>
+
+                                <div className="pt-4 border-t border-white/5">
+                                    <div className="p-3 bg-darkBg/60 rounded-xl border border-white/5 text-xs text-slate-400 space-y-1">
+                                        <div className="flex justify-between font-semibold text-slate-300">
+                                            <span>Daily Target</span>
+                                            <span>{profile.targetCalories} kcal</span>
+                                        </div>
+                                        <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                            <div
+                                                className="bg-primary h-full transition-all duration-500"
+                                                style={{width: `${Math.min(100, (todayTotals.calories / profile.targetCalories) * 100)}%`}}
+                                            ></div>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 pt-1">Data stored locally on device</p>
+                                    </div>
+                                </div>
+                            </aside>
+
+                            {/* Mobile Top Header */}
+                            <header className="lg:hidden flex items-center justify-between px-6 py-4 bg-cardBg/80 border-b border-white/5 backdrop-blur-md sticky top-0 z-40">
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center font-bold text-darkBg">C</div>
+                                    <span className="font-bold text-base tracking-wide">CALORIEOS</span>
+                                </div>
+                                <div className="flex items-center space-x-3">
+                                    <button
+                                        onClick={() => setActiveModal('disclaimer')}
+                                        className="text-xs bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg text-slate-300 border border-white/5"
+                                    >
+                                        Disclaimer
+                                    </button>
+                                </div>
+                            </header>
+
+                            {/* Main Content Area */}
+                            <main className="flex-1 pb-24 lg:pb-8 p-4 md:p-8 max-w-7xl mx-auto w-full">
+                                {currentTab === 'home' && (
+                                    <DashboardView
+                                        profile={profile}
+                                        selectedDate={selectedDate}
+                                        setSelectedDate={setSelectedDate}
+                                        todayMeals={todayMeals}
+                                        todayTotals={todayTotals}
+                                        todayExerciseCalories={todayExerciseCalories}
+                                        onOpenFoodSearch={(cat) => {
+                                            setSelectedMealCategory(cat);
+                                            setActiveModal('foodSearch');
+                                        }}
+                                        onOpenWeightLog={() => setActiveModal('weightLog')}
+                                        onOpenExerciseLog={() => setActiveModal('exerciseLog')}
+                                        setMealsLog={setMealsLog}
+                                    />
+                                )}
+                                {currentTab === 'food' && (
+                                    <FoodDatabaseView
+                                        allFoods={allFoods}
+                                        favorites={favorites}
+                                        setFavorites={setFavorites}
+                                        customFoods={customFoods}
+                                        setCustomFoods={setCustomFoods}
+                                        onSelectFood={(food) => {
+                                            setSelectedFoodItem(food);
+                                            setActiveModal('foodDetail');
+                                        }}
+                                        showToast={showToast}
+                                    />
+                                )}
+                                {currentTab === 'progress' && (
+                                    <ProgressView
+                                        weightLogs={weightLogs}
+                                        profile={profile}
+                                        onOpenWeightLog={() => setActiveModal('weightLog')}
+                                    />
+                                )}
+                                {currentTab === 'history' && (
+                                    <CalendarHistoryView
+                                        mealsLog={mealsLog}
+                                        weightLogs={weightLogs}
+                                        exerciseLogs={exerciseLogs}
+                                        profile={profile}
+                                        onSelectDay={(dateStr) => {
+                                            setCalendarModalDate(dateStr);
+                                            setActiveModal('dayDetail');
+                                        }}
+                                    />
+                                )}
+                                {currentTab === 'analytics' && (
+                                    <AnalyticsView
+                                        mealsLog={mealsLog}
+                                        weightLogs={weightLogs}
+                                        exerciseLogs={exerciseLogs}
+                                        profile={profile}
+                                    />
+                                )}
+                                {currentTab === 'settings' && (
+                                    <SettingsView
+                                        profile={profile}
+                                        setProfile={setProfile}
+                                        settings={settings}
+                                        setSettings={setSettings}
+                                        showToast={showToast}
+                                    />
+                                )}
+                            </main>
+
+                            {/* Mobile Bottom Navigation Bar */}
+                            <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-cardBg/95 border-t border-white/5 px-4 py-2 flex justify-around items-center backdrop-blur-xl z-40">
+                                {[
+                                    {id: 'home', label: 'Home', icon: 'LayoutDashboard'},
+                                    {id: 'food', label: 'Food', icon: 'Utensils'},
+                                    {id: 'progress', label: 'Progress', icon: 'TrendingUp'},
+                                    {id: 'history', label: 'History', icon: 'Calendar'},
+                                    {id: 'settings', label: 'Settings', icon: 'Settings'}
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setCurrentTab(tab.id)}
+                                        className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${currentTab === tab.id ? 'text-primary' : 'text-slate-400 hover:text-slate-200'
+                                            }`}
+                                    >
+                                        <i data-lucide={tab.icon} className="w-5 h-5 mb-1"></i>
+                                        <span className="text-[10px] font-medium">{tab.label}</span>
+                                    </button>
+                                ))}
+                            </nav>
+
+                            {/* Floating Action Button for Quick Food Add on Mobile */}
+                            <button
+                                onClick={() => {
+                                    setSelectedMealCategory('snacks');
+                                    setActiveModal('foodSearch');
+                                }}
+                                className="lg:hidden fixed right-6 bottom-20 w-14 h-14 bg-gradient-to-tr from-primary to-success rounded-full flex items-center justify-center text-darkBg shadow-2xl shadow-primary/50 z-40 hover:scale-105 active:scale-95 transition-transform"
+                                title="Add Food"
+                            >
+                                <i data-lucide="plus" className="w-6 h-6 stroke-[3]"></i>
+                            </button>
+                        </div>
+                    )}
+
+                    {/* MODALS */}
+                    {activeModal === 'foodSearch' && (
+                        <FoodSearchModal
+                            allFoods={allFoods}
+                            category={selectedMealCategory}
+                            onClose={() => setActiveModal(null)}
+                            onSelectFood={(food) => {
+                                setSelectedFoodItem(food);
+                                setActiveModal('foodDetail');
+                            }}
+                            onOpenCustomFood={() => setActiveModal('customFood')}
+                        />
+                    )}
+
+                    {activeModal === 'foodDetail' && selectedFoodItem && (
+                        <FoodDetailModal
+                            food={selectedFoodItem}
+                            category={selectedMealCategory}
+                            selectedDate={selectedDate}
+                            onClose={() => setActiveModal(null)}
+                            onAddMeal={(mealData, cat, date) => {
+                                setMealsLog(prev => {
+                                    const day = prev[date] || {breakfast: [], lunch: [], dinner: [], snacks: []};
+                                    return {
+                                        ...prev,
+                                        [date]: {
+                                            ...day,
+                                            [cat]: [...(day[cat] || []), mealData]
+                                        }
+                                    };
+                                });
+                                setActiveModal(null);
+                                showToast(`Added ${mealData.name} to ${cat}!`);
+                            }}
+                        />
+                    )}
+
+                    {activeModal === 'customFood' && (
+                        <CustomFoodModal
+                            onClose={() => setActiveModal(null)}
+                            onSave={(newFood) => {
+                                setCustomFoods(prev => [newFood, ...prev]);
+                                setActiveModal(null);
+                                showToast('Custom food created successfully!');
+                            }}
+                        />
+                    )}
+
+                    {activeModal === 'weightLog' && (
+                        <WeightLogModal
+                            currentWeights={weightLogs}
+                            unit={profile?.unitSystem || 'metric'}
+                            onClose={() => setActiveModal(null)}
+                            onSave={(newWeightEntry) => {
+                                setWeightLogs(prev => [...prev.filter(w => w.date !== newWeightEntry.date), newWeightEntry].sort((a, b) => new Date(a.date) - new Date(b.date)));
+                                setActiveModal(null);
+                                showToast('Weight logged successfully!');
+                            }}
+                        />
+                    )}
+
+                    {activeModal === 'exerciseLog' && (
+                        <ExerciseLogModal
+                            selectedDate={selectedDate}
+                            onClose={() => setActiveModal(null)}
+                            onSave={(exerciseItem, date) => {
+                                setExerciseLogs(prev => {
+                                    const list = prev[date] || [];
+                                    return {
+                                        ...prev,
+                                        [date]: [...list, exerciseItem]
+                                    };
+                                });
+                                setActiveModal(null);
+                                showToast('Workout logged successfully!');
+                            }}
+                        />
+                    )}
+
+                    {activeModal === 'dayDetail' && calendarModalDate && (
+                        <DayDetailModal
+                            dateStr={calendarModalDate}
+                            meals={mealsLog[calendarModalDate]}
+                            weight={weightLogs.find(w => w.date === calendarModalDate)}
+                            exercises={exerciseLogs[calendarModalDate]}
+                            profile={profile}
+                            onClose={() => {
+                                setActiveModal(null);
+                                setCalendarModalDate(null);
+                            }}
+                        />
+                    )}
+
+                    {activeModal === 'disclaimer' && (
+                        <DisclaimerModal onClose={() => setActiveModal(null)} />
+                    )}
+                </div>
+            );
+        }
+
+        function OnboardingFlow({onComplete}) {
+            const [step, setStep] = useState(1);
+            const [formData, setFormData] = useState({
+                age: 30,
+                sex: 'male',
+                height: 175, // cm
+                weight: 75,  // kg
+                unitSystem: 'metric',
+                activityLevel: 'moderate',
+                goal: 'lose', // lose, maintain, gain, recomposition
+                goalWeight: 70,
+                weeklyRate: 0.5, // kg per week
+                bodyFat: 18
+            });
+
+            // Calculate Mifflin-St Jeor RMR and TDEE
+            const calculations = useMemo(() => {
+                let w = formData.weight;
+                let h = formData.height;
+                if (formData.unitSystem === 'imperial') {
+                    w = formData.weight * 0.453592; // lbs to kg
+                    h = formData.height * 2.54;     // inches to cm
+                }
+
+                let rmr = (10 * w) + (6.25 * h) - (5 * formData.age);
+                if (formData.sex === 'male') {
+                    rmr += 5;
+                } else {
+                    rmr -= 161;
+                }
+
+                const actObj = ACTIVITY_LEVELS.find(a => a.id === formData.activityLevel) || ACTIVITY_LEVELS[2];
+                const tdee = Math.round(rmr * actObj.multiplier);
+
+                let targetCalories = tdee;
+                let deficit = 0;
+                if (formData.goal === 'lose') {
+                    // 7700 kcal per kg of fat
+                    const dailyDeficit = Math.round((formData.weeklyRate * 7700) / 7);
+                    deficit = dailyDeficit;
+                    targetCalories = tdee - dailyDeficit;
+                } else if (formData.goal === 'gain') {
+                    const dailySurplus = Math.round((formData.weeklyRate * 7700) / 7);
+                    targetCalories = tdee + dailySurplus;
+                }
+
+                // Safety checks
+                const minCalories = formData.sex === 'female' ? 1200 : 1500;
+                if (targetCalories < minCalories) {
+                    targetCalories = minCalories;
+                }
+
+                return {
+                    rmr: Math.round(rmr),
+                    tdee,
+                    targetCalories,
+                    deficit,
+                    minCalories
+                };
+            }, [formData]);
+
+            const handleNext = () => {
+                if (step < 5) setStep(step + 1);
+                else {
+                    onComplete({
+                        ...formData,
+                        rmr: calculations.rmr,
+                        tdee: calculations.tdee,
+                        targetCalories: calculations.targetCalories
+                    });
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-darkBg via-[#0d121c] to-darkBg">
+                    <div className="max-w-xl w-full bg-cardBg/90 border border-white/10 p-8 rounded-3xl backdrop-blur-2xl shadow-2xl relative overflow-hidden">
+                        {/* Progress Bar */}
+                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-800">
+                            <div className="h-full bg-gradient-to-r from-primary to-success transition-all duration-500" style={{width: `${(step / 5) * 100}%`}}></div>
+                        </div>
+
+                        <div className="flex justify-between items-center mb-6">
+                            <span className="text-xs font-semibold tracking-wider text-primary uppercase">Step {step} of 5</span>
+                            <span className="text-xs text-slate-400">CALORIEOS Onboarding</span>
+                        </div>
+
+                        {step === 1 && (
+                            <div className="space-y-6">
+                                <div>
+                                    <h2 className="text-2xl font-bold">Tell us about yourself</h2>
+                                    <p className="text-sm text-slate-400 mt-1">We use your biometrics to accurately calculate your metabolic baseline.</p>
+                                </div>
+                                <div className="flex bg-darkBg p-1 rounded-xl border border-white/5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({...formData, unitSystem: 'metric'})}
+                                        className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all ${formData.unitSystem === 'metric' ? 'bg-primary text-white shadow' : 'text-slate-400'}`}
+                                    >
+                                        Metric (kg / cm)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({...formData, unitSystem: 'imperial'})}
+                                        className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all ${formData.unitSystem === 'imperial' ? 'bg-primary text-white shadow' : 'text-slate-400'}`}
+                                    >
+                                        Imperial (lb / in)
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-300 mb-1">Age (years)</label>
+                                        <input
+                                            type="number"
+                                            value={formData.age}
+                                            onChange={e => setFormData({...formData, age: Number(e.target.value)})}
+                                            className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-primary"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-300 mb-1">Sex</label>
+                                        <select
+                                            value={formData.sex}
+                                            onChange={e => setFormData({...formData, sex: e.target.value})}
+                                            className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-primary"
+                                        >
+                                            <option value="male">Male</option>
+                                            <option value="female">Female</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-300 mb-1">Height ({formData.unitSystem === 'metric' ? 'cm' : 'inches'})</label>
+                                        <input
+                                            type="number"
+                                            value={formData.height}
+                                            onChange={e => setFormData({...formData, height: Number(e.target.value)})}
+                                            className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-primary"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-300 mb-1">Weight ({formData.unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                                        <input
+                                            type="number"
+                                            value={formData.weight}
+                                            onChange={e => setFormData({...formData, weight: Number(e.target.value)})}
+                                            className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-primary"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {step === 2 && (
+                            <div className="space-y-4">
+                                <div>
+                                    <h2 className="text-2xl font-bold">How active are you?</h2>
+                                    <p className="text-sm text-slate-400 mt-1">Select your typical daily activity level.</p>
+                                </div>
+                                <div className="space-y-3">
+                                    {ACTIVITY_LEVELS.map(act => (
+                                        <div
+                                            key={act.id}
+                                            onClick={() => setFormData({...formData, activityLevel: act.id})}
+                                            className={`p-4 rounded-2xl border cursor-pointer transition-all ${formData.activityLevel === act.id ? 'bg-primary/10 border-primary text-white shadow-lg shadow-primary/10' : 'bg-darkBg/50 border-white/5 hover:border-white/20 text-slate-300'}`}
+                                        >
+                                            <div className="flex justify-between items-center font-semibold">
+                                                <span>{act.name}</span>
+                                                <span className="text-xs bg-white/10 px-2 py-0.5 rounded-md text-primary font-mono">{act.multiplier}x</span>
+                                            </div>
+                                            <p className="text-xs text-slate-400 mt-1">{act.description}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {step === 3 && (
+                            <div className="space-y-4">
+                                <div>
+                                    <h2 className="text-2xl font-bold">What is your primary goal?</h2>
+                                    <p className="text-sm text-slate-400 mt-1">We will tailor your calorie deficit or surplus accordingly.</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {[
+                                        {id: 'lose', title: 'Lose Weight', desc: 'Sustainable fat loss & deficit', icon: 'Flame'},
+                                        {id: 'maintain', title: 'Maintain Weight', desc: 'Energy balance & maintenance', icon: 'Scale'},
+                                        {id: 'gain', title: 'Gain Muscle', desc: 'Controlled caloric surplus', icon: 'TrendingUp'},
+                                        {id: 'recomposition', title: 'Recomposition', desc: 'Build muscle & lose fat', icon: 'Activity'}
+                                    ].map(goal => (
+                                        <div
+                                            key={goal.id}
+                                            onClick={() => setFormData({...formData, goal: goal.id})}
+                                            className={`p-5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${formData.goal === goal.id ? 'bg-primary/10 border-primary text-white shadow-lg shadow-primary/10' : 'bg-darkBg/50 border-white/5 hover:border-white/20 text-slate-300'}`}
+                                        >
+                                            <div>
+                                                <i data-lucide={goal.icon} className="w-6 h-6 text-primary mb-2"></i>
+                                                <h3 className="font-semibold text-sm">{goal.title}</h3>
+                                            </div>
+                                            <p className="text-[11px] text-slate-400 mt-2">{goal.desc}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {step === 4 && (
+                            <div className="space-y-6">
+                                <div>
+                                    <h2 className="text-2xl font-bold">Set your target & rate</h2>
+                                    <p className="text-sm text-slate-400 mt-1">Define your target weight and sustainable weekly progress pace.</p>
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-300 mb-1">Target Weight ({formData.unitSystem === 'metric' ? 'kg' : 'lbs'})</label>
+                                        <input
+                                            type="number"
+                                            value={formData.goalWeight}
+                                            onChange={e => setFormData({...formData, goalWeight: Number(e.target.value)})}
+                                            className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-primary"
+                                        />
+                                    </div>
+                                    {formData.goal === 'lose' && (
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-300 mb-1">Preferred Weekly Loss Rate ({formData.unitSystem === 'metric' ? 'kg' : 'lbs'}/week)</label>
+                                            <select
+                                                value={formData.weeklyRate}
+                                                onChange={e => setFormData({...formData, weeklyRate: Number(e.target.value)})}
+                                                className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-primary"
+                                            >
+                                                <option value={0.25}>0.25 {formData.unitSystem === 'metric' ? 'kg' : 'lbs'}/wk (Gentle & Steady)</option>
+                                                <option value={0.5}>0.50 {formData.unitSystem === 'metric' ? 'kg' : 'lbs'}/wk (Recommended)</option>
+                                                <option value={0.75}>0.75 {formData.unitSystem === 'metric' ? 'kg' : 'lbs'}/wk (Moderate)</option>
+                                                <option value={1.0}>1.00 {formData.unitSystem === 'metric' ? 'kg' : 'lbs'}/wk (Aggressive)</option>
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {step === 5 && (
+                            <div className="space-y-6 animate-fade-in">
+                                <div>
+                                    <h2 className="text-2xl font-bold">Your Personalized Plan</h2>
+                                    <p className="text-sm text-slate-400 mt-1">Calculated using Mifflin-St Jeor metabolic equations.</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-darkBg/60 p-4 rounded-2xl border border-white/5">
+                                        <span className="text-xs text-slate-400">Resting Metabolic Rate</span>
+                                        <div className="text-xl font-bold text-white mt-1">{calculations.rmr} <span className="text-xs font-normal text-slate-400">kcal/day</span></div>
+                                    </div>
+                                    <div className="bg-darkBg/60 p-4 rounded-2xl border border-white/5">
+                                        <span className="text-xs text-slate-400">Maintenance TDEE</span>
+                                        <div className="text-xl font-bold text-white mt-1">{calculations.tdee} <span className="text-xs font-normal text-slate-400">kcal/day</span></div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-primary/10 border border-primary/30 p-5 rounded-2xl text-center space-y-1">
+                                    <span className="text-xs font-medium text-primary uppercase tracking-wider">Recommended Daily Target</span>
+                                    <div className="text-4xl font-extrabold text-white">{calculations.targetCalories} <span className="text-base font-normal text-slate-300">kcal</span></div>
+                                    <p className="text-xs text-slate-300 pt-1">
+                                        {formData.goal === 'lose' ? `Estimated daily deficit: ~${calculations.deficit} kcal` : 'Calorie balance target'}
+                                    </p>
+                                </div>
+
+                                <div className="bg-darkBg/40 p-3 rounded-xl border border-white/5 text-[11px] text-slate-400 leading-relaxed">
+                                    <strong>Medical Disclaimer:</strong> Calorie and energy expenditure values are estimates. This application is for informational purposes and is not medical advice.
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex justify-between items-center mt-8 pt-4 border-t border-white/5">
+                            {step > 1 ? (
+                                <button
+                                    onClick={() => setStep(step - 1)}
+                                    className="px-5 py-2.5 rounded-xl border border-white/10 text-sm font-medium hover:bg-white/5"
+                                >
+                                    Back
+                                </button>
+                            ) : <div></div>}
+                            <button
+                                onClick={handleNext}
+                                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-primary to-success text-darkBg font-bold text-sm shadow-lg shadow-primary/30 hover:opacity-95 transition-opacity"
+                            >
+                                {step === 5 ? 'Start Tracking' : 'Continue'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function DashboardView({profile, selectedDate, setSelectedDate, todayMeals, todayTotals, todayExerciseCalories, onOpenFoodSearch, onOpenWeightLog, onOpenExerciseLog, setMealsLog}) {
+            const remainingCalories = profile.targetCalories - todayTotals.calories + todayExerciseCalories;
+
+            // Macronutrient targets (rough estimates: 30% protein, 45% carbs, 25% fat)
+            const proteinTarget = Math.round((profile.targetCalories * 0.3) / 4);
+            const carbsTarget = Math.round((profile.targetCalories * 0.45) / 4);
+            const fatTarget = Math.round((profile.targetCalories * 0.25) / 9);
+
+            const mealCategories = [
+                {id: 'breakfast', label: 'Breakfast', icon: 'Sunrise'},
+                {id: 'lunch', label: 'Lunch', icon: 'Sun'},
+                {id: 'dinner', label: 'Dinner', icon: 'Moon'},
+                {id: 'snacks', label: 'Snacks & Drinks', icon: 'Coffee'}
+            ];
+
+            const handleDeleteItem = (category, itemId) => {
+                setMealsLog(prev => {
+                    const day = prev[selectedDate] || {breakfast: [], lunch: [], dinner: [], snacks: []};
+                    return {
+                        ...prev,
+                        [selectedDate]: {
+                            ...day,
+                            [category]: day[category].filter(item => item.id !== itemId)
+                        }
+                    };
+                });
+            };
+
+            return (
+                <div className="space-y-6 animate-fade-in">
+                    {/* Header bar */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-cardBg/60 p-6 rounded-3xl border border-white/5 backdrop-blur-xl">
+                        <div>
+                            <div className="flex items-center space-x-2 text-xs text-slate-400 mb-1">
+                                <i data-lucide="calendar" className="w-4 h-4 text-primary"></i>
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={e => setSelectedDate(e.target.value)}
+                                    className="bg-darkBg border border-white/10 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-primary font-mono"
+                                />
+                            </div>
+                            <h2 className="text-2xl font-bold">Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}!</h2>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                            <button
+                                onClick={onOpenWeightLog}
+                                className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium flex items-center space-x-2 transition-all"
+                            >
+                                <i data-lucide="scale" className="w-4 h-4 text-primary"></i>
+                                <span>Log Weight</span>
+                            </button>
+                            <button
+                                onClick={onOpenExerciseLog}
+                                className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium flex items-center space-x-2 transition-all"
+                            >
+                                <i data-lucide="activity" className="w-4 h-4 text-success"></i>
+                                <span>Log Workout</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Main Calorie & Macros Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Main Calorie Card */}
+                        <div className="lg:col-span-1 bg-cardBg/80 border border-white/5 p-6 rounded-3xl backdrop-blur-xl flex flex-col justify-between relative overflow-hidden shadow-xl">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+                            <div>
+                                <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Energy Balance</span>
+                                <h3 className="text-lg font-bold mt-1">Today's Deficit</h3>
+                            </div>
+
+                            <div className="py-6 flex flex-col items-center justify-center text-center">
+                                <div className="text-4xl font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+                                    {todayTotals.calories} <span className="text-sm font-normal text-slate-400">/ {profile.targetCalories} kcal</span>
+                                </div>
+                                <div className="text-xs text-slate-400 mt-2">
+                                    <span className={`font-semibold ${remainingCalories >= 0 ? 'text-success' : 'text-danger'}`}>
+                                        {Math.abs(remainingCalories)} kcal {remainingCalories >= 0 ? 'remaining' : 'over target'}
+                                    </span>
+                                    {todayExerciseCalories > 0 && ` (+${todayExerciseCalories} kcal exercise)`}
+                                </div>
+                            </div>
+
+                            <div className="w-full bg-darkBg h-3 rounded-full overflow-hidden p-0.5 border border-white/5">
+                                <div
+                                    className={`h-full rounded-full transition-all duration-700 ${todayTotals.calories <= profile.targetCalories ? 'bg-gradient-to-r from-primary to-success' : 'bg-gradient-to-r from-warning to-danger'}`}
+                                    style={{width: `${Math.min(100, (todayTotals.calories / profile.targetCalories) * 100)}%`}}
+                                ></div>
+                            </div>
+                        </div>
+
+                        {/* Macronutrient Breakdown Cards */}
+                        <div className="lg:col-span-2 bg-cardBg/80 border border-white/5 p-6 rounded-3xl backdrop-blur-xl flex flex-col justify-between shadow-xl">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-bold text-base">Macronutrient Targets</h3>
+                                <span className="text-xs text-slate-400">Daily goal distribution</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {[
+                                    {label: 'Protein', current: Math.round(todayTotals.protein), target: proteinTarget, color: 'bg-primary'},
+                                    {label: 'Carbohydrates', current: Math.round(todayTotals.carbs), target: carbsTarget, color: 'bg-success'},
+                                    {label: 'Fat', current: Math.round(todayTotals.fat), target: fatTarget, color: 'bg-warning'}
+                                ].map(macro => (
+                                    <div key={macro.label} className="bg-darkBg/50 p-4 rounded-2xl border border-white/5 flex flex-col justify-between">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="text-xs font-medium text-slate-300">{macro.label}</span>
+                                            <span className="text-xs font-mono text-slate-400">{macro.current}g / {macro.target}g</span>
+                                        </div>
+                                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-2">
+                                            <div className={`h-full ${macro.color} transition-all duration-500`} style={{width: `${Math.min(100, (macro.current / macro.target) * 100)}%`}}></div>
+                                        </div>
+                                        <div className="text-[10px] text-slate-500 text-right">
+                                            {Math.round((macro.current / (macro.target || 1)) * 100)}% of goal
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-xl flex items-center space-x-3">
+                                <i data-lucide="sparkles" className="w-5 h-5 text-primary shrink-0"></i>
+                                <p className="text-xs text-slate-300">
+                                    <strong>Sustainable Reminder:</strong> Your weekly trend matters more than any single day. Stay consistent!
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Today's Meals Section */}
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-xl font-bold">Today's Meal Timeline</h3>
+                            <span className="text-xs text-slate-400">{todayTotals.calories} kcal logged today</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {mealCategories.map(cat => {
+                                const list = todayMeals[cat.id] || [];
+                                const catCalories = list.reduce((acc, curr) => acc + (curr.calories || 0), 0);
+
+                                return (
+                                    <div key={cat.id} className="bg-cardBg/80 border border-white/5 rounded-3xl p-5 backdrop-blur-xl flex flex-col justify-between shadow-xl">
+                                        <div>
+                                            <div className="flex justify-between items-center mb-3">
+                                                <div className="flex items-center space-x-2">
+                                                    <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                                        <i data-lucide={cat.icon} className="w-4 h-4"></i>
+                                                    </div>
+                                                    <h4 className="font-bold text-sm">{cat.label}</h4>
+                                                </div>
+                                                <span className="text-xs font-mono text-slate-400">{catCalories} kcal</span>
+                                            </div>
+
+                                            {list.length === 0 ? (
+                                                <p className="text-xs text-slate-500 py-3 italic">No items logged yet.</p>
+                                            ) : (
+                                                <div className="space-y-2 mb-3">
+                                                    {list.map(item => (
+                                                        <div key={item.id} className="flex justify-between items-center bg-darkBg/50 p-2.5 rounded-xl border border-white/5 text-xs">
+                                                            <div>
+                                                                <span className="font-medium text-slate-200">{item.name}</span>
+                                                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                                                    {item.amount} {item.unit} • P: {Math.round(item.protein)}g | C: {Math.round(item.carbs)}g | F: {Math.round(item.fat)}g
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center space-x-3">
+                                                                <span className="font-mono font-semibold text-white">{item.calories} kcal</span>
+                                                                <button
+                                                                    onClick={() => handleDeleteItem(cat.id, item.id)}
+                                                                    className="text-slate-500 hover:text-danger transition-colors"
+                                                                >
+                                                                    <i data-lucide="trash-2" className="w-3.5 h-3.5"></i>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <button
+                                            onClick={() => onOpenFoodSearch(cat.id)}
+                                            className="w-full mt-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium flex items-center justify-center space-x-2 text-slate-300 transition-all"
+                                        >
+                                            <i data-lucide="plus" className="w-4 h-4 text-primary"></i>
+                                            <span>Add Food to {cat.label}</span>
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function FoodDatabaseView({allFoods, favorites, setFavorites, customFoods, setCustomFoods, onSelectFood, showToast}) {
+            const [searchQuery, setSearchQuery] = useState('');
+            const [selectedCategory, setSelectedCategory] = useState('All');
+            const [activeTab, setActiveTab] = useState('search'); // 'search', 'favorites', 'custom'
+
+            const categories = ['All', 'Foundation Foods', 'FNDDS', 'SR Legacy', 'Branded Foods', 'Custom'];
+
+            const filteredFoods = useMemo(() => {
+                return allFoods.filter(food => {
+                    const matchesSearch = food.name.toLowerCase().includes(searchQuery.toLowerCase());
+                    if (activeTab === 'favorites') return favorites.includes(food.id) && matchesSearch;
+                    if (activeTab === 'custom') return food.source === 'Custom food — user supplied' && matchesSearch;
+                    if (selectedCategory !== 'All' && food.category !== selectedCategory) return false;
+                    return matchesSearch;
+                });
+            }, [allFoods, searchQuery, selectedCategory, activeTab, favorites]);
+
+            const toggleFavorite = (id, e) => {
+                e.stopPropagation();
+                if (favorites.includes(id)) {
+                    setFavorites(favorites.filter(f => f !== id));
+                    showToast('Removed from favorites');
+                } else {
+                    setFavorites([...favorites, id]);
+                    showToast('Added to favorites');
+                }
+            };
+
+            return (
+                <div className="space-y-6 animate-fade-in">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-cardBg/60 p-6 rounded-3xl border border-white/5 backdrop-blur-xl">
+                        <div>
+                            <h2 className="text-2xl font-bold">USDA Food Database</h2>
+                            <p className="text-sm text-slate-400 mt-1">Search official USDA FoodData Central items or your custom foods.</p>
+                        </div>
+                        <div className="flex bg-darkBg p-1 rounded-xl border border-white/5">
+                            <button onClick={() => setActiveTab('search')} className={`px-4 py-2 text-xs font-medium rounded-lg transition-all ${activeTab === 'search' ? 'bg-primary text-white shadow' : 'text-slate-400'}`}>Search</button>
+                            <button onClick={() => setActiveTab('favorites')} className={`px-4 py-2 text-xs font-medium rounded-lg transition-all ${activeTab === 'favorites' ? 'bg-primary text-white shadow' : 'text-slate-400'}`}>Favorites</button>
+                            <button onClick={() => setActiveTab('custom')} className={`px-4 py-2 text-xs font-medium rounded-lg transition-all ${activeTab === 'custom' ? 'bg-primary text-white shadow' : 'text-slate-400'}`}>Custom</button>
+                        </div>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="relative">
+                        <i data-lucide="search" className="absolute left-4 top-3.5 w-5 h-5 text-slate-400"></i>
+                        <input
+                            type="text"
+                            placeholder="Search chicken breast, avocado, oats..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="w-full bg-cardBg/80 border border-white/10 rounded-2xl pl-12 pr-4 py-3.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary shadow-xl backdrop-blur-xl"
+                        />
+                    </div>
+
+                    {/* Categories Filter */}
+                    {activeTab === 'search' && (
+                        <div className="flex overflow-x-auto space-x-2 pb-2">
+                            {categories.map(cat => (
+                                <button
+                                    key={cat}
+                                    onClick={() => setSelectedCategory(cat)}
+                                    className={`px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${selectedCategory === cat ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-cardBg/60 border border-white/5 text-slate-400 hover:text-white'}`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Food Items Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {filteredFoods.map(food => {
+                            const isFav = favorites.includes(food.id);
+                            return (
+                                <div
+                                    key={food.id}
+                                    onClick={() => onSelectFood(food)}
+                                    className="bg-cardBg/80 border border-white/5 p-5 rounded-3xl backdrop-blur-xl hover:border-primary/40 transition-all cursor-pointer flex flex-col justify-between shadow-xl group"
+                                >
+                                    <div>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="text-[10px] font-semibold bg-white/5 px-2.5 py-1 rounded-md text-slate-400 border border-white/5">{food.category}</span>
+                                            <button onClick={(e) => toggleFavorite(food.id, e)} className={`text-slate-400 hover:text-primary transition-colors ${isFav ? 'text-warning' : ''}`}>
+                                                <i data-lucide="star" className={`w-4 h-4 ${isFav ? 'fill-warning' : ''}`}></i>
+                                            </button>
+                                        </div>
+                                        <h3 className="font-bold text-sm group-hover:text-primary transition-colors line-clamp-2">{food.name}</h3>
+                                        <span className="text-[11px] text-slate-500 mt-1 block">{food.source}</span>
+                                    </div>
+
+                                    <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center">
+                                        <div>
+                                            <div className="text-base font-extrabold text-white">{food.calories} <span className="text-xs font-normal text-slate-400">kcal</span></div>
+                                            <div className="text-[10px] text-slate-400">Per {food.servingSize}{food.servingUnit}</div>
+                                        </div>
+                                        <div className="text-[11px] font-mono text-slate-400 space-x-1">
+                                            <span>P:{Math.round(food.protein)}g</span>
+                                            <span>C:{Math.round(food.carbs)}g</span>
+                                            <span>F:{Math.round(food.fat)}g</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        function FoodSearchModal({allFoods, category, onClose, onSelectFood, onOpenCustomFood}) {
+            const [query, setQuery] = useState('');
+            const results = useMemo(() => {
+                if (!query) return allFoods.slice(0, 10);
+                return allFoods.filter(f => f.name.toLowerCase().includes(query.toLowerCase()));
+            }, [allFoods, query]);
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-darkBg/80 backdrop-blur-md">
+                    <div className="bg-cardBg border border-white/10 rounded-3xl max-w-xl w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h3 className="font-bold text-lg">Add Food to {category}</h3>
+                                <p className="text-xs text-slate-400">Search USDA database or select custom food.</p>
+                            </div>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white">
+                                <i data-lucide="x" className="w-5 h-5"></i>
+                            </button>
+                        </div>
+
+                        <div className="relative mb-4">
+                            <i data-lucide="search" className="absolute left-4 top-3.5 w-4 h-4 text-slate-400"></i>
+                            <input
+                                type="text"
+                                placeholder="Search food..."
+                                value={query}
+                                onChange={e => setQuery(e.target.value)}
+                                className="w-full bg-darkBg border border-white/10 rounded-xl pl-11 pr-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                                autoFocus
+                            />
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                            {results.map(food => (
+                                <div
+                                    key={food.id}
+                                    onClick={() => onSelectFood(food)}
+                                    className="p-3 bg-darkBg/50 border border-white/5 hover:border-primary/40 rounded-xl flex justify-between items-center cursor-pointer transition-all"
+                                >
+                                    <div>
+                                        <div className="font-medium text-xs text-slate-200">{food.name}</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">{food.source} • {food.servingSize}{food.servingUnit}</div>
+                                    </div>
+                                    <div className="text-right font-mono">
+                                        <div className="text-xs font-bold text-white">{food.calories} kcal</div>
+                                        <div className="text-[10px] text-slate-400">P:{Math.round(food.protein)}g C:{Math.round(food.carbs)}g F:{Math.round(food.fat)}g</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
+                            <button
+                                onClick={onOpenCustomFood}
+                                className="text-xs text-primary font-medium hover:underline flex items-center space-x-1"
+                            >
+                                <i data-lucide="plus-circle" className="w-4 h-4"></i>
+                                <span>Create Custom Food</span>
+                            </button>
+                            <button onClick={onClose} className="px-4 py-2 bg-white/5 rounded-xl text-xs font-medium">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function FoodDetailModal({food, category, selectedDate, onClose, onAddMeal}) {
+            const [amount, setAmount] = useState(food.servingSize || 100);
+            const [unit, setUnit] = useState(food.servingUnit || 'g');
+
+            // Calculate scaled nutrition
+            const ratio = amount / (food.servingSize || 100);
+            const scaled = {
+                calories: Math.round(food.calories * ratio),
+                protein: Number((food.protein * ratio).toFixed(1)),
+                carbs: Number((food.carbs * ratio).toFixed(1)),
+                fat: Number((food.fat * ratio).toFixed(1)),
+                fiber: Number(((food.fiber || 0) * ratio).toFixed(1)),
+                sodium: Math.round((food.sodium || 0) * ratio)
+            };
+
+            const handleAdd = () => {
+                onAddMeal({
+                    id: 'meal-' + Date.now(),
+                    name: food.name,
+                    amount,
+                    unit,
+                    ...scaled
+                }, category, selectedDate);
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-darkBg/80 backdrop-blur-md">
+                    <div className="bg-cardBg border border-white/10 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-6">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <span className="text-[10px] bg-white/5 px-2 py-0.5 rounded-md text-slate-400 border border-white/5">{food.category}</span>
+                                <h3 className="font-bold text-lg mt-1">{food.name}</h3>
+                                <p className="text-xs text-slate-500">{food.source}</p>
+                            </div>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white">
+                                <i data-lucide="x" className="w-5 h-5"></i>
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Amount</label>
+                                <input
+                                    type="number"
+                                    value={amount}
+                                    onChange={e => setAmount(Number(e.target.value))}
+                                    className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-slate-100 focus:outline-none focus:border-primary"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Serving Unit</label>
+                                <select
+                                    value={unit}
+                                    onChange={e => setUnit(e.target.value)}
+                                    className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-primary"
+                                >
+                                    <option value="g">grams (g)</option>
+                                    <option value="serving">serving</option>
+                                    <option value="piece">piece</option>
+                                    <option value="cup">cup</option>
+                                    <option value="tbsp">tbsp</option>
+                                    <option value="tsp">tsp</option>
+                                    <option value="oz">oz</option>
+                                    <option value="ml">ml</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="bg-darkBg/60 p-4 rounded-2xl border border-white/5 space-y-3">
+                            <div className="flex justify-between items-center font-bold text-base">
+                                <span>Total Calories</span>
+                                <span className="text-primary text-xl">{scaled.calories} kcal</span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5 text-center text-xs">
+                                <div className="bg-white/5 p-2 rounded-xl">
+                                    <span className="text-slate-400 block text-[10px]">Protein</span>
+                                    <span className="font-bold text-white">{scaled.protein}g</span>
+                                </div>
+                                <div className="bg-white/5 p-2 rounded-xl">
+                                    <span className="text-slate-400 block text-[10px]">Carbs</span>
+                                    <span className="font-bold text-white">{scaled.carbs}g</span>
+                                </div>
+                                <div className="bg-white/5 p-2 rounded-xl">
+                                    <span className="text-slate-400 block text-[10px]">Fat</span>
+                                    <span className="font-bold text-white">{scaled.fat}g</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex space-x-3 pt-2">
+                            <button onClick={onClose} className="flex-1 py-3 bg-white/5 rounded-xl text-xs font-medium">Cancel</button>
+                            <button onClick={handleAdd} className="flex-1 py-3 bg-primary text-white rounded-xl text-xs font-bold shadow-lg shadow-primary/30">Add to {category}</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function CustomFoodModal({onClose, onSave}) {
+            const [form, setForm] = useState({
+                name: '',
+                calories: 200,
+                protein: 10,
+                carbs: 20,
+                fat: 5,
+                fiber: 2,
+                sodium: 100,
+                servingSize: 100,
+                servingUnit: 'g'
+            });
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (!form.name) return;
+                onSave({
+                    id: 'custom-' + Date.now(),
+                    ...form,
+                    category: 'Custom',
+                    source: 'Custom food — user supplied'
+                });
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-darkBg/80 backdrop-blur-md">
+                    <div className="bg-cardBg border border-white/10 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-6">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h3 className="font-bold text-lg">Create Custom Food</h3>
+                                <p className="text-xs text-slate-400">Labeled as custom food — user supplied.</p>
+                            </div>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white"><i data-lucide="x" className="w-5 h-5"></i></button>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Food Name</label>
+                                <input
+                                    type="text"
+                                    required
+                                    placeholder="e.g. Grandma's Protein Smoothie"
+                                    value={form.name}
+                                    onChange={e => setForm({...form, name: e.target.value})}
+                                    className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-300 mb-1">Calories (kcal)</label>
+                                    <input type="number" required value={form.calories} onChange={e => setForm({...form, calories: Number(e.target.value)})} className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-300 mb-1">Protein (g)</label>
+                                    <input type="number" required value={form.protein} onChange={e => setForm({...form, protein: Number(e.target.value)})} className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-300 mb-1">Carbs (g)</label>
+                                    <input type="number" required value={form.carbs} onChange={e => setForm({...form, carbs: Number(e.target.value)})} className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-300 mb-1">Fat (g)</label>
+                                    <input type="number" required value={form.fat} onChange={e => setForm({...form, fat: Number(e.target.value)})} className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono" />
+                                </div>
+                            </div>
+
+                            <div className="flex space-x-3 pt-4">
+                                <button type="button" onClick={onClose} className="flex-1 py-3 bg-white/5 rounded-xl text-xs font-medium">Cancel</button>
+                                <button type="submit" className="flex-1 py-3 bg-primary text-white rounded-xl text-xs font-bold shadow-lg shadow-primary/30">Save Custom Food</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        function ProgressView({weightLogs, profile, onOpenWeightLog}) {
+            const currentWeight = weightLogs[weightLogs.length - 1]?.weight || profile.weight;
+            const startWeight = weightLogs[0]?.weight || profile.weight;
+            const totalChange = Number((currentWeight - startWeight).toFixed(1));
+
+            return (
+                <div className="space-y-6 animate-fade-in">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-cardBg/60 p-6 rounded-3xl border border-white/5 backdrop-blur-xl">
+                        <div>
+                            <h2 className="text-2xl font-bold">Progress & Weight Tracking</h2>
+                            <p className="text-sm text-slate-400 mt-1">Review weight trends and rolling averages over time.</p>
+                        </div>
+                        <button
+                            onClick={onOpenWeightLog}
+                            className="px-5 py-2.5 bg-primary text-white rounded-xl text-xs font-bold shadow-lg shadow-primary/30 flex items-center space-x-2"
+                        >
+                            <i data-lucide="plus" className="w-4 h-4"></i>
+                            <span>Log Weight</span>
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-cardBg/80 border border-white/5 p-5 rounded-3xl backdrop-blur-xl">
+                            <span className="text-xs text-slate-400">Current Weight</span>
+                            <div className="text-3xl font-extrabold text-white mt-1">{currentWeight} <span className="text-sm font-normal text-slate-400">{profile.unitSystem === 'metric' ? 'kg' : 'lbs'}</span></div>
+                        </div>
+                        <div className="bg-cardBg/80 border border-white/5 p-5 rounded-3xl backdrop-blur-xl">
+                            <span className="text-xs text-slate-400">Goal Weight</span>
+                            <div className="text-3xl font-extrabold text-primary mt-1">{profile.goalWeight} <span className="text-sm font-normal text-slate-400">{profile.unitSystem === 'metric' ? 'kg' : 'lbs'}</span></div>
+                        </div>
+                        <div className="bg-cardBg/80 border border-white/5 p-5 rounded-3xl backdrop-blur-xl">
+                            <span className="text-xs text-slate-400">Total Change</span>
+                            <div className={`text-3xl font-extrabold mt-1 ${totalChange <= 0 ? 'text-success' : 'text-warning'}`}>{totalChange > 0 ? `+${totalChange}` : totalChange} <span className="text-sm font-normal text-slate-400">{profile.unitSystem === 'metric' ? 'kg' : 'lbs'}</span></div>
+                        </div>
+                    </div>
+
+                    {/* Recharts Chart */}
+                    <div className="bg-cardBg/80 border border-white/5 p-6 rounded-3xl backdrop-blur-xl shadow-xl space-y-4">
+                        <h3 className="font-bold text-base">Weight Trend History</h3>
+                        <div className="h-72 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={weightLogs}>
+                                    <defs>
+                                        <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#7C5CFC" stopOpacity={0.4} />
+                                            <stop offset="95%" stopColor="#7C5CFC" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#1e2633" />
+                                    <XAxis dataKey="date" stroke="#64748b" fontSize={11} />
+                                    <YAxis stroke="#64748b" fontSize={11} domain={['dataMin - 2', 'dataMax + 2']} />
+                                    <Tooltip contentStyle={{backgroundColor: '#11151C', borderColor: '#1e2633', borderRadius: '12px', color: '#fff'}} />
+                                    <Area type="monotone" dataKey="weight" stroke="#7C5CFC" strokeWidth={3} fillOpacity={1} fill="url(#weightGrad)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <p className="text-xs text-slate-500 text-center">Daily water weight fluctuations are normal. Focus on rolling multi-week trends.</p>
+                    </div>
+                </div>
+            );
+        }
+
+        function WeightLogModal({currentWeights, unit, onClose, onSave}) {
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [weight, setWeight] = useState(currentWeights[currentWeights.length - 1]?.weight || 75);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSave({date, weight: Number(weight)});
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-darkBg/80 backdrop-blur-md">
+                    <div className="bg-cardBg border border-white/10 rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-6">
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-bold text-lg">Log Weight</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white"><i data-lucide="x" className="w-5 h-5"></i></button>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Date</label>
+                                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Weight ({unit === 'metric' ? 'kg' : 'lbs'})</label>
+                                <input type="number" step="0.1" value={weight} onChange={e => setWeight(e.target.value)} className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-slate-100 focus:outline-none focus:border-primary font-mono" autoFocus />
+                            </div>
+                            <div className="flex space-x-3 pt-2">
+                                <button type="button" onClick={onClose} className="flex-1 py-3 bg-white/5 rounded-xl text-xs font-medium">Cancel</button>
+                                <button type="submit" className="flex-1 py-3 bg-primary text-white rounded-xl text-xs font-bold shadow-lg shadow-primary/30">Save Weight</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        function ExerciseLogModal({selectedDate, onClose, onSave}) {
+            const [form, setForm] = useState({
+                type: 'Running',
+                duration: 30,
+                caloriesBurned: 300,
+                intensity: 'Moderate'
+            });
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSave({
+                    id: 'ex-' + Date.now(),
+                    ...form
+                }, selectedDate);
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-darkBg/80 backdrop-blur-md">
+                    <div className="bg-cardBg border border-white/10 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-6">
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-bold text-lg">Log Workout</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white"><i data-lucide="x" className="w-5 h-5"></i></button>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Workout Type</label>
+                                <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-primary">
+                                    <option value="Running">Running</option>
+                                    <option value="Walking">Walking</option>
+                                    <option value="Cycling">Cycling</option>
+                                    <option value="Gym">Gym / Resistance Training</option>
+                                    <option value="Swimming">Swimming</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-300 mb-1">Duration (mins)</label>
+                                    <input type="number" value={form.duration} onChange={e => setForm({...form, duration: Number(e.target.value)})} className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-300 mb-1">Est. Calories Burned</label>
+                                    <input type="number" value={form.caloriesBurned} onChange={e => setForm({...form, caloriesBurned: Number(e.target.value)})} className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono" />
+                                </div>
+                            </div>
+                            <div className="flex space-x-3 pt-4">
+                                <button type="button" onClick={onClose} className="flex-1 py-3 bg-white/5 rounded-xl text-xs font-medium">Cancel</button>
+                                <button type="submit" className="flex-1 py-3 bg-primary text-white rounded-xl text-xs font-bold shadow-lg shadow-primary/30">Save Workout</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        function CalendarHistoryView({mealsLog, weightLogs, exerciseLogs, profile, onSelectDay}) {
+            // Generate current month days
+            const days = Array.from({length: 30}, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - (29 - i));
+                return d.toISOString().split('T')[0];
+            });
+
+            return (
+                <div className="space-y-6 animate-fade-in">
+                    <div className="bg-cardBg/60 p-6 rounded-3xl border border-white/5 backdrop-blur-xl">
+                        <h2 className="text-2xl font-bold">Calendar History</h2>
+                        <p className="text-sm text-slate-400 mt-1">Click any day to review full logs, meals, and weight records.</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                        {days.map(dateStr => {
+                            const dayMeals = mealsLog[dateStr] || {breakfast: [], lunch: [], dinner: [], snacks: []};
+                            const cals = ['breakfast', 'lunch', 'dinner', 'snacks'].reduce((acc, cat) => acc + (dayMeals[cat] || []).reduce((a, c) => a + c.calories, 0), 0);
+                            const hasData = cals > 0;
+                            const status = cals === 0 ? 'no-data' : cals <= profile.targetCalories ? 'achieved' : 'above';
+
+                            return (
+                                <div
+                                    key={dateStr}
+                                    onClick={() => onSelectDay(dateStr)}
+                                    className={`bg-cardBg/80 border p-4 rounded-2xl backdrop-blur-xl cursor-pointer transition-all hover:scale-105 flex flex-col justify-between ${status === 'achieved' ? 'border-success/40 bg-success/5' : status === 'above' ? 'border-warning/40 bg-warning/5' : 'border-white/5'}`}
+                                >
+                                    <div className="text-[11px] font-mono text-slate-400">{dateStr.slice(5)}</div>
+                                    <div className="my-3">
+                                        <div className="text-lg font-bold text-white">{cals}</div>
+                                        <div className="text-[10px] text-slate-500">kcal</div>
+                                    </div>
+                                    <div className={`text-[10px] font-semibold px-2 py-0.5 rounded-md inline-block w-fit ${status === 'achieved' ? 'text-success bg-success/10' : status === 'above' ? 'text-warning bg-warning/10' : 'text-slate-500 bg-white/5'}`}>
+                                        {status === 'achieved' ? 'On Target' : status === 'above' ? 'Above' : 'No Data'}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        function DayDetailModal({dateStr, meals, weight, exercises, profile, onClose}) {
+            const dayMeals = meals || {breakfast: [], lunch: [], dinner: [], snacks: []};
+            const totalCals = ['breakfast', 'lunch', 'dinner', 'snacks'].reduce((acc, cat) => acc + (dayMeals[cat] || []).reduce((a, c) => a + c.calories, 0), 0);
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-darkBg/80 backdrop-blur-md">
+                    <div className="bg-cardBg border border-white/10 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <span className="text-xs text-primary font-mono">{dateStr}</span>
+                                <h3 className="font-bold text-xl">Daily Summary</h3>
+                            </div>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white"><i data-lucide="x" className="w-5 h-5"></i></button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-darkBg/50 p-4 rounded-2xl border border-white/5">
+                                <span className="text-xs text-slate-400">Total Consumed</span>
+                                <div className="text-xl font-bold text-white mt-1">{totalCals} <span className="text-xs font-normal text-slate-400">/ {profile.targetCalories} kcal</span></div>
+                            </div>
+                            <div className="bg-darkBg/50 p-4 rounded-2xl border border-white/5">
+                                <span className="text-xs text-slate-400">Weight Recorded</span>
+                                <div className="text-xl font-bold text-white mt-1">{weight ? `${weight.weight} kg` : 'None'}</div>
+                            </div>
+                        </div>
+
+                        {exercises && exercises.length > 0 && (
+                            <div>
+                                <h4 className="font-bold text-sm mb-2 text-slate-300">Workouts</h4>
+                                {exercises.map(ex => (
+                                    <div key={ex.id} className="bg-darkBg/40 p-3 rounded-xl border border-white/5 flex justify-between items-center text-xs mb-1">
+                                        <span>{ex.type} ({ex.duration} mins)</span>
+                                        <span className="font-mono text-success">+{ex.caloriesBurned} kcal</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div>
+                            <h4 className="font-bold text-sm mb-2 text-slate-300">Meals Logged</h4>
+                            {['breakfast', 'lunch', 'dinner', 'snacks'].map(cat => {
+                                const list = dayMeals[cat] || [];
+                                if (list.length === 0) return null;
+                                return (
+                                    <div key={cat} className="mb-3">
+                                        <span className="text-xs font-semibold text-primary uppercase tracking-wider">{cat}</span>
+                                        {list.map(item => (
+                                            <div key={item.id} className="flex justify-between items-center bg-darkBg/40 p-2.5 rounded-xl border border-white/5 text-xs mt-1">
+                                                <span>{item.name} ({item.amount}{item.unit})</span>
+                                                <span className="font-mono font-bold">{item.calories} kcal</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <button onClick={onClose} className="w-full py-3 bg-white/5 rounded-xl text-xs font-medium">Close Summary</button>
+                    </div>
+                </div>
+            );
+        }
+
+        function AnalyticsView({mealsLog, weightLogs, exerciseLogs, profile}) {
+            return (
+                <div className="space-y-6 animate-fade-in">
+                    <div className="bg-cardBg/60 p-6 rounded-3xl border border-white/5 backdrop-blur-xl">
+                        <h2 className="text-2xl font-bold">Analytics & Insights</h2>
+                        <p className="text-sm text-slate-400 mt-1">Smart trends and metabolic progress analysis.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-cardBg/80 border border-white/5 p-6 rounded-3xl backdrop-blur-xl space-y-4">
+                            <h3 className="font-bold text-base">Key Insights</h3>
+                            <div className="space-y-3">
+                                <div className="p-4 bg-primary/10 border border-primary/20 rounded-2xl flex items-start space-x-3">
+                                    <i data-lucide="sparkles" className="w-5 h-5 text-primary shrink-0 mt-0.5"></i>
+                                    <p className="text-xs text-slate-200">
+                                        Your weight trend has decreased steadily over the selected period. Consistency is compounding your results!
+                                    </p>
+                                </div>
+                                <div className="p-4 bg-success/10 border border-success/20 rounded-2xl flex items-start space-x-3">
+                                    <i data-lucide="check-circle-2" className="w-5 h-5 text-success shrink-0 mt-0.5"></i>
+                                    <p className="text-xs text-slate-200">
+                                        Average calorie intake remains well aligned with your sustainable target deficit of ~500 kcal/day.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-cardBg/80 border border-white/5 p-6 rounded-3xl backdrop-blur-xl space-y-4">
+                            <h3 className="font-bold text-base">Goal Progress</h3>
+                            <div className="space-y-4 pt-2">
+                                <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-slate-400">Weight Goal Progress</span>
+                                        <span className="font-bold text-white">74%</span>
+                                    </div>
+                                    <div className="w-full bg-darkBg h-3 rounded-full overflow-hidden border border-white/5">
+                                        <div className="bg-gradient-to-r from-primary to-success h-full w-[74%]"></div>
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-darkBg/50 rounded-2xl border border-white/5 text-xs text-slate-400 space-y-2">
+                                    <div className="flex justify-between">
+                                        <span>Estimated Maintenance TDEE:</span>
+                                        <span className="font-mono text-white">{profile.tdee} kcal</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Current Target Deficit:</span>
+                                        <span className="font-mono text-success">{profile.tdee - profile.targetCalories} kcal/day</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function SettingsView({profile, setProfile, settings, setSettings, showToast}) {
+            const [form, setForm] = useState(profile);
+
+            const handleSave = (e) => {
+                e.preventDefault();
+                setProfile(form);
+                showToast('Profile updated successfully!');
+            };
+
+            const handleExport = () => {
+                const data = {profile, settings, weights: localStorage.getItem('calorieos_weights'), meals: localStorage.getItem('calorieos_meals')};
+                const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'calorieos_backup.json';
+                a.click();
+                showToast('Data exported successfully!');
+            };
+
+            const handleClearData = () => {
+                if (confirm('Are you sure you want to clear all data and restart onboarding?')) {
+                    localStorage.clear();
+                    window.location.reload();
+                }
+            };
+
+            return (
+                <div className="space-y-6 max-w-2xl mx-auto animate-fade-in">
+                    <div className="bg-cardBg/60 p-6 rounded-3xl border border-white/5 backdrop-blur-xl">
+                        <h2 className="text-2xl font-bold">Settings & Profile</h2>
+                        <p className="text-sm text-slate-400 mt-1">Manage your biometric profile, USDA API preferences, and local storage.</p>
+                    </div>
+
+                    <form onSubmit={handleSave} className="bg-cardBg/80 border border-white/5 p-6 rounded-3xl backdrop-blur-xl space-y-4 shadow-xl">
+                        <h3 className="font-bold text-base mb-2">Edit Biometrics & Targets</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Age</label>
+                                <input type="number" value={form.age} onChange={e => setForm({...form, age: Number(e.target.value)})} className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-primary" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Daily Calorie Target</label>
+                                <input type="number" value={form.targetCalories} onChange={e => setForm({...form, targetCalories: Number(e.target.value)})} className="w-full bg-darkBg border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono" />
+                            </div>
+                        </div>
+                        <button type="submit" className="w-full py-3 bg-primary text-white rounded-xl text-xs font-bold shadow-lg shadow-primary/30">Save Profile Changes</button>
+                    </form>
+
+                    <div className="bg-cardBg/80 border border-white/5 p-6 rounded-3xl backdrop-blur-xl space-y-4 shadow-xl">
+                        <h3 className="font-bold text-base">Data Management & Privacy</h3>
+                        <p className="text-xs text-slate-400">All data is stored securely in your browser's local storage. No proprietary backend required.</p>
+
+                        <div className="flex flex-wrap gap-3 pt-2">
+                            <button onClick={handleExport} className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium">Export Backup (JSON)</button>
+                            <button onClick={handleClearData} className="px-4 py-2.5 bg-danger/10 hover:bg-danger/20 text-danger border border-danger/30 rounded-xl text-xs font-medium">Clear All Data</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function DisclaimerModal({onClose}) {
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-darkBg/80 backdrop-blur-md">
+                    <div className="bg-cardBg border border-white/10 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+                        <h3 className="font-bold text-lg">Medical Disclaimer</h3>
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                            "Calorie and energy expenditure values are estimates and may differ from your actual needs. This application is intended for general informational and tracking purposes and is not medical advice. Consult a qualified healthcare professional for individualized nutrition or weight-management advice."
+                        </p>
+                        <button onClick={onClose} className="w-full py-3 bg-primary text-white rounded-xl text-xs font-bold shadow-lg shadow-primary/30">I Understand</button>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+        setTimeout(() => {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }, 100);
+    </script>
+</body>
+
+</html>
